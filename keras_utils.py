@@ -56,7 +56,7 @@ class DecodeVal(Callback):
                 eval_output = self.validation_outputs[eval_index]
                 eval_sequence = self.decode_function(eval_input)
                 eval_output_sequence = " ".join(
-                    [self.index2word[t] for t in eval_output if selfindex2word[t] != "<EOS>"])
+                    [self.index2word[t] for t in eval_output if not self.index2word[t] in ["<EOS>", "<BOS>"]])
                 print("Predicted Sequence: ")
                 print(eval_sequence)
                 print("True Sequence: ")
@@ -196,10 +196,12 @@ class BatchEarlyStopping(Callback):
             )
         return monitor_value
 
-#The keras hdf5Matrix class isn't happy if the normalizer function changes the number of dimensions
-#It checks the shape of the pre-normalized input when used in a model, so it will fail validation
-#We can get around this by overriding the shape property to return the post-normalization shape
-#I didn't end up using this (Went with sparse_cross_entropy loss instead), but it seems like a handy thing to have lying around 
+# The keras hdf5Matrix class isn't happy if the normalizer function changes the number of dimensions
+# It checks the shape of the pre-normalized input when used in a model, so it will fail validation
+# We can get around this by overriding the shape property to return the post-normalization shape
+# I didn't end up using this (Went with sparse_cross_entropy loss instead), but it seems like a handy thing to have lying around
+
+
 class NormalizedHDF5Matrix(HDF5Matrix):
     def __init__(self, datapath, dataset, start=0, end=None, normalizer=None):
         def ds_norm(x): return x if normalizer is None else normalizer(x)

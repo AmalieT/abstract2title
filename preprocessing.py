@@ -105,10 +105,10 @@ def write_train_hdf5():
 def main():
     if sys.argv[1] == "write_tokenized_corpus":
         write_tokenized_corpus()
-    elif sys.argv[1] == "create_bpe_vocab":
-        create_bpe_vocab()
+    elif sys.argv[1] == "write_bpe_vocab":
+        write_bpe_vocab()
     elif sys.argv[1] == "write_train_hdf5":
-        create_train_hdf5()
+        write_train_hdf5()
 
 
 if __name__ == "__main__":

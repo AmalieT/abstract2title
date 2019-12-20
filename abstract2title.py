@@ -8,7 +8,6 @@ import string
 import pickle
 import operator
 import matplotlib.pyplot as plt
-from vocab_utils import create_vocab, to_index, bpe_to_index, create_bpe_vocab, NormalizedHDF5Matrix
 from keras.models import Model
 from keras.layers import Input, LSTM, Dense, Lambda, Bidirectional, Concatenate
 import numpy as np
@@ -133,7 +132,16 @@ def decode_sequence(input_seq):
 
 def restrict_length(maxlen, eos_token_index):
   def restrict_length_normalizer_function(sequence):
-    restricted_sequence = sequence[:maxlen - 1] + [eos_token_index]
+    restricted_sequence = sequence
+    for i, seq in enumerate(restricted_sequence):
+      try:
+        for j, s in enumerate(seq):
+          if i >= maxlen:
+            restricted_sequence[i][j] = eos_token_index
+          if s == 0 and j > 0:
+            restricted_sequence[i][j] = eos_token_index
+      except TypeError:
+        pass
     return restricted_sequence
 
   return restrict_length_normalizer_function
@@ -154,6 +162,7 @@ encoder_input_data_test = HDF5Matrix(
 
 decoder_input_data_test = HDF5Matrix(datapath, 'titles_test_tokens', 0,
                                      None, normalizer=restrict_length(title_maxlen, word2index['<EOS>']))
+
 decoder_output_data_test = HDF5Matrix(
     datapath, 'titles_test_tokens_output', 0, None, normalizer=restrict_length(title_maxlen, word2index['<EOS>']))
 
