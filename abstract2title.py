@@ -18,11 +18,11 @@ from keras.callbacks import EarlyStopping, TensorBoard
 from keras_utils import sparse_cross_entropy, BatchCheckpoint, BatchEarlyStopping, DecodeVal
 
 
-batch_size = 16
+batch_size = 32
 epochs = 10
 latent_dim = 256
-title_maxlen = 100
-abstract_maxlen = 500
+title_maxlen = 32
+abstract_maxlen = 256
 
 word2index = pickle.load(open(os.path.join("data", 'word2index.pkl'), 'rb'))
 index2word = pickle.load(open(os.path.join("data", 'index2word.pkl'), 'rb'))
@@ -132,39 +132,38 @@ def decode_sequence(input_seq):
 
 def restrict_length(maxlen, eos_token_index):
   def restrict_length_normalizer_function(sequence):
-    restricted_sequence = sequence
-    for i, seq in enumerate(restricted_sequence):
-      try:
-        for j, s in enumerate(seq):
-          if i >= maxlen:
-            restricted_sequence[i][j] = eos_token_index
-          if s == 0 and j > 0:
-            restricted_sequence[i][j] = eos_token_index
-      except TypeError:
-        pass
-    return restricted_sequence
+    restricted_sequence = []
+    for i, seq in enumerate(sequence):
+      list_here = []
+      for j, s in enumerate(seq):
+        if s == eos_token_index or i >= maxlen:
+          list_here = np.array(sequence[i][:j + 1])
+          list_here[-1] = eos_token_index
+          restricted_sequence.append(list_here)
+          break
+    return np.concatenate(restricted_sequence)
 
   return restrict_length_normalizer_function
 
 
 encoder_input_data = HDF5Matrix(datapath, 'abstracts_train_tokens', 0,
-                                None, normalizer=restrict_length(abstract_maxlen, word2index['<EOS>']))
+                                None)
 
 decoder_input_data = HDF5Matrix(datapath, 'titles_train_tokens', 0,
-                                None, normalizer=restrict_length(title_maxlen, word2index['<EOS>']))
+                                None)
 
 decoder_output_data = HDF5Matrix(
-    datapath, 'titles_train_tokens_output', 0, None, normalizer=restrict_length(title_maxlen, word2index['<EOS>']))
+    datapath, 'titles_train_tokens_output', 0, None)
 
 
 encoder_input_data_test = HDF5Matrix(
-    datapath, 'abstracts_test_tokens', 0, None, normalizer=restrict_length(abstract_maxlen, word2index['<EOS>']))
+    datapath, 'abstracts_test_tokens', 0, None)
 
 decoder_input_data_test = HDF5Matrix(datapath, 'titles_test_tokens', 0,
-                                     None, normalizer=restrict_length(title_maxlen, word2index['<EOS>']))
+                                     None)
 
 decoder_output_data_test = HDF5Matrix(
-    datapath, 'titles_test_tokens_output', 0, None, normalizer=restrict_length(title_maxlen, word2index['<EOS>']))
+    datapath, 'titles_test_tokens_output', 0, None)
 
 path_checkpoint = 'abstract2title_checkpoint.keras'
 

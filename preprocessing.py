@@ -25,8 +25,8 @@ def write_bpe_vocab():
 
 
 def write_train_hdf5():
-    title_maxlen = 100
-    abstract_maxlen = 500
+    title_maxlen = 32
+    abstract_maxlen = 256
     validation_fraction = 0.0001
 
     word2index = pickle.load(
@@ -52,20 +52,32 @@ def write_train_hdf5():
         titles_train_tokens_dset = f.create_dataset(
             "titles_train_tokens", (n_titles_train, title_maxlen), dtype='i8')
 
+        titles_train_tokens_dset[:, :] = 1
+
         titles_train_tokens_output_dset = f.create_dataset(
             "titles_train_tokens_output", (n_titles_train, title_maxlen), dtype='i8')
+
+        titles_train_tokens_output_dset[:, :] = 1
 
         titles_test_tokens_dset = f.create_dataset(
             "titles_test_tokens", (n_titles_test, title_maxlen), dtype='i8')
 
+        titles_test_tokens_dset[:, :] = 1
+
         titles_test_tokens_output_dset = f.create_dataset(
             "titles_test_tokens_output", (n_titles_test, title_maxlen), dtype='i8')
+
+        titles_test_tokens_output_dset[:, :] = 1
 
         abstracts_train_tokens_dset = f.create_dataset(
             "abstracts_train_tokens", (n_titles_train, abstract_maxlen), dtype='i8')
 
+        abstracts_train_tokens_dset[:, :] = 1
+
         abstracts_test_tokens_dset = f.create_dataset(
             "abstracts_test_tokens", (n_titles_test, abstract_maxlen), dtype='i8')
+
+        abstracts_test_tokens_dset[:, :] = 1
 
         with open(titles_train, 'r') as f:
             for i, l in enumerate(f):

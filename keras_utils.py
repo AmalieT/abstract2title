@@ -51,12 +51,13 @@ class DecodeVal(Callback):
     def on_batch_end(self, batch, logs={}):
         if self.batch % self.eval_every == 0:
             for _ in range(self.n_eval):
-                eval_index = random.randint(0, self.val_size)
+                eval_index = random.randint(0, int(self.val_size / 10))
                 eval_input = self.validation_inputs[eval_index]
                 eval_output = self.validation_outputs[eval_index]
                 eval_sequence = self.decode_function(eval_input)
                 eval_output_sequence = " ".join(
-                    [self.index2word[t] for t in eval_output if not self.index2word[t] in ["<EOS>", "<BOS>"]])
+                    [self.index2word[t] for t in eval_output])
+                print("\n")
                 print("Predicted Sequence: ")
                 print(eval_sequence)
                 print("True Sequence: ")
