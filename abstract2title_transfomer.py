@@ -17,9 +17,9 @@ from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from keras_utils import BatchCheckpoint, BatchEarlyStopping, DecodeVal, transformer
 import math
 import tensorflow as tf
+import tensorflow_probability as tfp
 
-
-batch_size = 128
+batch_size = 256
 epochs = 10
 title_maxlen = 32
 abstract_maxlen = 256
@@ -88,7 +88,24 @@ model.compile(optimizer=optimizer,
 model.summary()
 
 
-def evaluate(sentence, beam_width=5):
+def sample_without_replacement(logits, K):
+  """
+  Sample from a tensor of logits without replacement using the Gumbel max trick
+
+  http://timvieira.github.io/blog/post/2014/08/01/gumbel-max-trick-and-weighted-reservoir-sampling/
+  This trick is so fucking cool. Who comes up with this shit?
+
+  Note that the distribution doesn't depend on logits or K, meaning no costly distribution instantiations
+  The world is your oyster with the Gumbel max trick.
+  """
+  dist = tfp.distributions.Gumbel(loc=0, scale=1)
+  z = dist.sample(tf.shape(logits))
+  _, indices = tf.nn.top_k(logits + z, K)
+  return indices
+
+
+def stochastic_beam_search(sentence, beam_width=5):
+  # Make a prediction using a stochastic beam search
   initial_output = [word2index['<BOS>']]
   beams = [(initial_output, 0)]
 
@@ -105,14 +122,14 @@ def evaluate(sentence, beam_width=5):
       predictions = model(
           inputs=[sentence, output], training=False)
 
-      predictions = tf.nn.softmax(predictions[:, -1:, :])
+      predictions = tf.nn.log_softmax(predictions[:, -1:, :])
 
       predictions = tf.squeeze(predictions)
 
-      top_k_indices = tf.argsort(predictions, axis=-1, direction='DESCENDING')
+      top_k_indices = sample_without_replacement(predictions, beam_width)
 
       for ind in top_k_indices.numpy()[:beam_width]:
-        prob = math.log(predictions[ind].numpy()) + beam[1]
+        prob = predictions[ind].numpy() + beam[1]
         new_output = beam[0] + [ind]
         new_beams.append((new_output, prob))
 
@@ -122,7 +139,7 @@ def evaluate(sentence, beam_width=5):
 
 
 def predict(sentence, beam_width=5, n_beams=2):
-  beams = evaluate(sentence, beam_width=beam_width)
+  beams = stochastic_beam_search(sentence, beam_width=beam_width)
 
   predictions = []
   for beam in beams:
