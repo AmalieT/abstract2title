@@ -9,13 +9,14 @@ import pickle
 import operator
 import matplotlib.pyplot as plt
 from keras.models import Model
-from keras.layers import Input, LSTM, Dense, Lambda, Bidirectional, Concatenate
+from keras.layers import Input, LSTM, Dense, Lambda, Bidirectional, Concatenate, Activation
 import numpy as np
 import keras
 from keras.utils.io_utils import HDF5Matrix
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, TensorBoard
 from keras_utils import sparse_cross_entropy, BatchCheckpoint, BatchEarlyStopping, DecodeVal
+import math
 
 
 batch_size = 32
@@ -85,7 +86,8 @@ decoder_outputs, state_h, state_c = decoder_LSTM(
 
 decoder_states = [state_h, state_c]
 
-decoder_outputs = decoder_dense(decoder_outputs)
+decoder_outputs = Activation(activation='softmax')(
+    decoder_dense(decoder_outputs))
 
 decoder_model = Model(
     [decoder_inputs] + decoder_states_inputs,
@@ -117,7 +119,7 @@ def decode_sequence(input_seq):
     # Exit condition: either hit max length
     # or find stop character.
     if (sampled_token == '<EOS>' or
-            len(decoded_sentence) > title_maxlen):
+            len(decoded_sentence.split()) > title_maxlen):
       stop_condition = True
 
     # Update the target sequence (of length 1).
@@ -128,6 +130,43 @@ def decode_sequence(input_seq):
     states_value = [h, c]
 
   return decoded_sentence
+
+
+def beam_decode_sequence(input_seq, top_k=5):
+  # Encode the input as state vectors.
+  states_value = encoder_model.predict(input_seq)
+
+  stop_condition = False
+  beams = [([word2index['<BOS>']], 0)]
+  while not stop_condition:
+    new_beams = []
+    for beam in beams:
+      target_seq = np.zeros((1, 1))
+      target_seq[0, 0] = beam[0][-1]
+      try:
+        states_value = beam[2]
+      except IndexError:
+        pass
+      output_tokens, h, c = decoder_model.predict(
+          [target_seq] + states_value)
+
+      states_value = [h, c]
+      top_k_indices = (-output_tokens[0, 0, :]).argsort()[:top_k]
+      for ind in top_k_indices:
+        if ind == word2index['<EOS>'] or len(beam[0]) > title_maxlen:
+          stop_condition = True
+        prob = math.log(output_tokens[0, 0, ind]) + beam[1]
+        new_target_seq = beam[0] + [ind]
+        new_beams.append((new_target_seq, prob, states_value))
+
+    beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[:top_k]
+
+  decoded_sequences = []
+  for beam in beams:
+    decoded_sequence = " ".join([index2word[t] for t in beam[0]])
+    decoded_sequences += [(decoded_sequence, math.exp(beam[1]))]
+
+  return decoded_sequences
 
 
 def restrict_length(maxlen, eos_token_index):
@@ -179,8 +218,8 @@ callback_checkpoint = BatchCheckpoint(name=path_checkpoint, save_every=1000)
 callback_early_stopping = EarlyStopping(monitor='val_loss',
                                         patience=3, verbose=1)
 
-callback_decode_val = DecodeVal(eval_every=100, decode_function=decode_sequence,
-                                validation_inputs=encoder_input_data_test, validation_outputs=decoder_input_data_test, index2word=index2word, n_eval=1)
+callback_decode_val = DecodeVal(eval_every=100, decode_function=beam_decode_sequence,
+                                validation_inputs=encoder_input_data_test, validation_outputs=decoder_input_data_test, index2word=index2word, n_eval=1, beam_width=5)
 
 
 callback_tensorboard = TensorBoard(log_dir='./abstract2title_logs/',
