@@ -19,7 +19,7 @@ import math
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-batch_size = 256
+batch_size = 128
 epochs = 10
 title_maxlen = 32
 abstract_maxlen = 256
@@ -36,7 +36,7 @@ max_vocab_size = len(word2index.items())
 
 model = transformer(
     vocab_size=max_vocab_size,
-    num_layers=2,
+    num_layers=6,
     units=512,
     d_model=256,
     num_heads=8,
@@ -49,7 +49,7 @@ def sparse_cross_entropy(y_true, y_pred):
   loss = tf.keras.losses.SparseCategoricalCrossentropy(
       from_logits=True, reduction='none')(y_true, y_pred)
 
-  mask = tf.cast(tf.not_equal(y_true, 1), tf.float32)
+  mask = tf.cast(tf.not_equal(y_true, 2), tf.float32)
   loss = tf.multiply(loss, mask)
 
   return tf.reduce_mean(loss)
@@ -116,8 +116,11 @@ def stochastic_beam_search(sentence, beam_width=5):
   while not isComplete:
     new_beams = []
     for beam in beams:
-      if len(beam[0]) > title_maxlen or beam[0][-1] == word2index['<EOS>']:
+      if len(beam[0]) > title_maxlen:
         isComplete = True
+      if beam[0][-1] == word2index['<EOS>']:
+        new_beams.append(beam)
+        continue
       output = tf.expand_dims(beam[0], 0)
       predictions = model(
           inputs=[sentence, output], training=False)
@@ -134,6 +137,8 @@ def stochastic_beam_search(sentence, beam_width=5):
         new_beams.append((new_output, prob))
 
     beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[:beam_width]
+    if all([beam[0][-1] == word2index['<EOS>'] for beam in beams]):
+      isComplete = True
 
   return beams
 
@@ -190,7 +195,7 @@ callback_checkpoint_backup = BatchCheckpoint(
 callback_early_stopping = EarlyStopping(monitor='val_loss',
                                         patience=3, verbose=1)
 
-callback_decode_val = DecodeVal(eval_every=1000, decode_function=predict,
+callback_decode_val = DecodeVal(eval_every=3000, decode_function=predict,
                                 validation_inputs=encoder_input_data_test, validation_outputs=decoder_input_data_test, index2word=index2word, n_eval=1, beam_width=10)
 
 

@@ -75,13 +75,15 @@ class DecodeVal(Callback):
 
                 print("\n")
                 print("True Sequence: ")
-                print(eval_output_sequence.replace("@@ ", ""))
+                print(eval_output_sequence.replace(
+                    "@@ ", "").replace(" <PAD>", ""))
 
                 if self.beam_width is None:
                     eval_sequence = self.decode_function(eval_input)
                     print("\n")
                     print("Predicted Sequence: ")
-                    print(eval_sequence.replace("@@ ", ""))
+                    print(eval_sequence.replace(
+                        "@@ ", "").replace(" <PAD>", ""))
 
                 else:
                     eval_sequences = self.decode_function(
@@ -92,7 +94,7 @@ class DecodeVal(Callback):
                     for eval_sequence in eval_sequences:
                         print("\n")
                         print("Prob: {}, Sequence: {}".format(
-                            eval_sequence[1], eval_sequence[0]))
+                            eval_sequence[1], eval_sequence[0].replace("@@ ", "").replace(" <PAD>", "")))
 
         self.batch += 1
 
@@ -339,7 +341,7 @@ class MultiHeadAttention(Layer):
 
 
 def create_padding_mask(x):
-    mask = tf.cast(tf.math.equal(x, 1), tf.float32)
+    mask = tf.cast(tf.math.equal(x, 2), tf.float32)
     # (batch_size, 1, 1, sequence length)
     return mask[:, tf.newaxis, tf.newaxis, :]
 

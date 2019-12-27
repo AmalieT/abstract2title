@@ -101,10 +101,11 @@ def create_bpe_vocab(titleVocabFile, abstractsVocabFile):
 
     word2index["<BOS>"] = 0
     word2index["<EOS>"] = 1
+    word2index["<PAD>"] = 2
 
     for i, l in enumerate(counter.most_common()):
         word, _ = l
-        word2index[word] = i + 2
+        word2index[word] = i + 3
 
     index2word = {v: k for k, v in word2index.items()}
 
