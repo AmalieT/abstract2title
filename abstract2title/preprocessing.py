@@ -7,15 +7,26 @@ from numpy.random import shuffle
 import numpy as np
 
 titles_train_raw = os.path.join("data", "titles_train.txt")
+titles_train_tokens = os.path.join("data", "titles_train_tokens.txt")
+
 titles_train = os.path.join("data", "titles_train_tokens.bpe")
 abstracts_train_raw = os.path.join("data", "abstracts_train.txt")
+abstracts_train_tokens = os.path.join("data", "abstracts_train_tokens.txt")
+
 abstracts_train = os.path.join("data", "abstracts_train_tokens.bpe")
+titles_test_raw = os.path.join("data", "titles_test.txt")
+titles_test = os.path.join("data", "titles_test_tokens.txt")
+abstracts_test_raw = os.path.join("data", "abstracts_test.txt")
+abstracts_test = os.path.join("data", "abstracts_test_tokens.txt")
+
 hdf5_filename = os.path.join("data", "abstract2title.hdf5")
 
 
 def write_tokenized_corpus():
-    tokenize_corpus(titles_train_raw, titles_train)
-    tokenize_corpus(abstracts_train_raw, abstracts_train)
+    # tokenize_corpus(titles_train_raw, titles_train_tokens)
+    # tokenize_corpus(abstracts_train_raw, abstracts_train_tokens)
+    tokenize_corpus(titles_test_raw, titles_test)
+    tokenize_corpus(abstracts_test_raw, abstracts_test)
 
 
 def write_bpe_vocab():

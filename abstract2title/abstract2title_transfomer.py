@@ -19,13 +19,13 @@ import math
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-batch_size = 128
-epochs = 10
+batch_size = 256
+epochs = 15
 title_maxlen = 32
 abstract_maxlen = 256
 
-train_size = 4432316
-train_end = math.floor(train_size / batch_size) * batch_size
+# train_size = 4432316
+# train_end = math.floor(train_size / batch_size) * batch_size
 
 word2index = pickle.load(open(os.path.join("data", 'word2index.pkl'), 'rb'))
 index2word = pickle.load(open(os.path.join("data", 'index2word.pkl'), 'rb'))
@@ -36,11 +36,19 @@ max_vocab_size = len(word2index.items())
 
 model = transformer(
     vocab_size=max_vocab_size,
-    num_layers=6,
+    num_layers=2,
     units=512,
     d_model=256,
     num_heads=8,
     dropout=0.1)
+
+# model = transformer(
+#     vocab_size=max_vocab_size,
+#     num_layers=1,
+#     units=64,
+#     d_model=32,
+#     num_heads=8,
+#     dropout=0.1)
 
 
 def sparse_cross_entropy(y_true, y_pred):
@@ -74,8 +82,10 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 learning_rate = CustomSchedule()
 
-optimizer = tf.keras.optimizers.Adam(
-    learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+# optimizer = tf.keras.optimizers.Adam(
+#     learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+
+optimizer = tf.keras.optimizers.SGD(learning_rate=0.0001)
 
 
 def accuracy(y_true, y_pred):
@@ -92,6 +102,7 @@ def sample_without_replacement(logits, K):
   """
   Sample from a tensor of logits without replacement using the Gumbel max trick
 
+  https://arxiv.org/pdf/1903.06059.pdf
   http://timvieira.github.io/blog/post/2014/08/01/gumbel-max-trick-and-weighted-reservoir-sampling/
   This trick is so fucking cool. Who comes up with this shit?
 
@@ -167,13 +178,13 @@ decoder_output_data = HDF5Matrix(
 
 
 encoder_input_data_test = HDF5Matrix(
-    datapath, 'abstracts_test_tokens', 0, batch_size)
+    datapath, 'abstracts_test_tokens', 0, None)
 
 decoder_input_data_test = HDF5Matrix(datapath, 'titles_test_tokens', 0,
-                                     batch_size)
+                                     None)
 
 decoder_output_data_test = HDF5Matrix(
-    datapath, 'titles_test_tokens_output', 0, batch_size)
+    datapath, 'titles_test_tokens_output', 0, None)
 
 val_size = len(decoder_input_data_test)
 path_checkpoint = 'abstract2title_transformer_checkpoint.keras'
@@ -196,13 +207,13 @@ callback_early_stopping = EarlyStopping(monitor='val_loss',
                                         patience=3, verbose=1)
 
 callback_decode_val = DecodeVal(eval_every=3000, decode_function=predict,
-                                validation_inputs=encoder_input_data_test, validation_outputs=decoder_input_data_test, index2word=index2word, n_eval=1, beam_width=10)
+                                validation_inputs=encoder_input_data_test, validation_outputs=decoder_input_data_test, index2word=index2word, n_eval=1, beam_width=2)
 
 
 callbacks = [callback_early_stopping,
              callback_checkpoint,
-             callback_checkpoint_backup,
-             callback_decode_val]
+             callback_checkpoint_backup, ]
+# callback_decode_val]
 
 model.fit([encoder_input_data, decoder_input_data],
           decoder_output_data,

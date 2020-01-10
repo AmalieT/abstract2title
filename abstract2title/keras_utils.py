@@ -55,7 +55,7 @@ class DecodeVal(Callback):
         super(DecodeVal, self).__init__()
         self.eval_every = eval_every
         self.batch = 0
-        self.val_size = validation_inputs.shape[0]
+        self.val_size = len(validation_inputs)
         self.decode_function = decode_function
         self.validation_inputs = validation_inputs
         self.validation_outputs = validation_outputs
@@ -558,3 +558,40 @@ def transformer(vocab_size,
         units=vocab_size, name="outputs")(dec_outputs)
 
     return tf.keras.Model(inputs=[inputs, dec_inputs], outputs=outputs, name=name)
+
+
+def encoder_classifier(vocab_size,
+                       num_layers,
+                       units,
+                       d_model,
+                       num_heads,
+                       dropout,
+                       num_classes,
+                       abstract_maxlen,
+                       d_embed,
+                       name="transformer"):
+    inputs = tf.keras.Input(shape=(abstract_maxlen,), name="inputs")
+
+    enc_padding_mask = tf.keras.layers.Lambda(
+        create_padding_mask, output_shape=(1, 1, abstract_maxlen),
+        name='enc_padding_mask')(inputs)
+
+    enc_outputs = encoder(
+        vocab_size=vocab_size,
+        num_layers=num_layers,
+        units=units,
+        d_model=d_model,
+        num_heads=num_heads,
+        dropout=dropout,
+    )(inputs=[inputs, enc_padding_mask])
+
+    dense_flat = tf.keras.layers.Reshape(
+        (abstract_maxlen * d_model,))(enc_outputs)
+
+    dense = tf.keras.layers.Dense(
+        units=d_embed, name="dense")(dense_flat)
+
+    outputs = tf.keras.layers.Dense(
+        units=num_classes, name="outputs")(dense)
+
+    return tf.keras.Model(inputs=inputs, outputs=outputs, name=name)
