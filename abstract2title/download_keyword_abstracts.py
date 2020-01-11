@@ -25,7 +25,7 @@ for i, d in enumerate(db.entries.find()):
             if isinstance(d['keywords'], list):
                 keywords = d['keywords']
             else:
-                keywords = d['keywords'].split()
+                keywords = d['keywords'].split().sort()
             if len(keywords) > len(keyword_max):
                 keyword_max = keywords
             rel_strings.append((

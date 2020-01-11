@@ -5,44 +5,46 @@ import sys
 import os
 from numpy.random import shuffle
 import numpy as np
+import tensorflow as tf
+import itertools
 
-keywords_train_raw = os.path.join("data", "keywords_train_a2k.txt")
-keywords_train_tokens = os.path.join("data", "keywords_train_a2k_tokens.txt")
-keywords_train = os.path.join("data", "keywords_train_a2k_tokens.bpe")
+keywords_train_raw = os.path.join("data", "keywords_train.txt")
+keywords_train_tokens = os.path.join("data", "keywords_train_tokens.txt")
 
-keywords_test_raw = os.path.join("data", "keywords_test_a2k.txt")
-keywords_test = os.path.join("data", "keywords_test_a2k_tokens.txt")
+keywords_train = os.path.join("data", "keywords_train_tokens.bpe")
+abstracts_train_raw = os.path.join("data", "abstracts_train.txt")
+abstracts_train_tokens = os.path.join("data", "abstracts_train_tokens.txt")
 
-abstracts_train_raw = os.path.join("data", "abstracts_train_a2k.txt")
-abstracts_train_tokens = os.path.join("data", "abstracts_train_a2k_tokens.txt")
-abstracts_train = os.path.join("data", "abstracts_train_a2k_tokens.bpe")
+abstracts_train = os.path.join("data", "abstracts_train_tokens.bpe")
+keywords_test_raw = os.path.join("data", "keywords_test.txt")
+keywords_test = os.path.join("data", "keywords_test_tokens.txt")
+abstracts_test_raw = os.path.join("data", "abstracts_test.txt")
+abstracts_test = os.path.join("data", "abstracts_test_tokens.txt")
 
-abstracts_test_raw = os.path.join("data", "abstracts_test_a2k.txt")
-abstracts_test = os.path.join("data", "abstracts_test_a2k_tokens.txt")
-
-hdf5_filename = os.path.join("data", "abstract2keyword.hdf5")
+tfrecord_filename = os.path.join("data", "abstract2keyword.tfrecord")
+tfrecord_validation_filename = os.path.join(
+    "data", "abstract2keyword_val.tfrecord")
 
 
 def write_tokenized_corpus():
     tokenize_corpus(keywords_train_raw, keywords_train_tokens)
-    tokenize_corpus(keywords_test_raw, keywords_test)
-
     tokenize_corpus(abstracts_train_raw, abstracts_train_tokens)
+    tokenize_corpus(keywords_test_raw, keywords_test)
     tokenize_corpus(abstracts_test_raw, abstracts_test)
 
 
 def write_bpe_vocab():
-    word2index, index2word = create_bpe_vocab(abstracts_train, keywords_train)
+    word2index, index2word = create_bpe_vocab(keywords_train, abstracts_train)
     pickle.dump(word2index, open(os.path.join(
         "data", 'word2index_a2k.pkl'), 'wb'))
     pickle.dump(index2word, open(os.path.join(
         "data", 'index2word_a2k.pkl'), 'wb'))
 
 
-def write_train_hdf5():
-    keyword_maxlen = 64
+def write_train_tfrecord():
+    keyword_maxlen = 32
     abstract_maxlen = 256
-    validation_fraction = 0.0005
+    validation_fraction = 0.0001
 
     word2index = pickle.load(
         open(os.path.join("data", 'word2index_a2k.pkl'), 'rb'))
@@ -58,75 +60,82 @@ def write_train_hdf5():
         return i + 1
 
     n_keywords = file_len(keywords_train)
-    n_keywords_test = int(file_len(keywords_train) * validation_fraction)
-    n_keywords_train = file_len(keywords_train) - n_keywords_test
-    shuffled = np.arange(n_keywords_train)
-    shuffle(shuffled)
+    n_keywords_validation = int(file_len(keywords_train) * validation_fraction)
+    n_keywords_train = file_len(keywords_train) - n_keywords_validation
 
-    with h5py.File(hdf5_filename, "w") as f:
-        keywords_train_tokens_dset = f.create_dataset(
-            "keywords_train_tokens", (n_keywords_train, keyword_maxlen), dtype='i8')
+    def _int64_feature(value):
+        return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
 
-        keywords_train_tokens_dset[:, :] = 2
+    def serialize_train_example(abstract, keyword, keyword_out):
+        """
+        Creates a tf.Example message ready to be written to a file.
+        """
+        # Create a dictionary mapping the feature name to the tf.Example-compatible
+        # data type.
+        feature = {
+            'abstract': _int64_feature(abstract),
+            'keyword': _int64_feature(keyword),
+            'titlte_out': _int64_feature(keyword_out)
+        }
 
-        keywords_train_tokens_output_dset = f.create_dataset(
-            "keywords_train_tokens_output", (n_keywords_train, keyword_maxlen), dtype='i8')
+        # Create a Features message using tf.train.Example.
 
-        keywords_train_tokens_output_dset[:, :] = 2
+        example_proto = tf.train.Example(
+            features=tf.train.Features(feature=feature))
+        return example_proto.SerializeToString()
 
-        keywords_test_tokens_dset = f.create_dataset(
-            "keywords_test_tokens", (n_keywords_test, keyword_maxlen), dtype='i8')
+    def clean_index_pad(keyword, abstract):
+        abstract_clean = abstract.strip()
+        abstract_indexed = bpe_to_index(
+            abstract_clean, word2index, abstract_maxlen)
 
-        keywords_test_tokens_dset[:, :] = 2
+        abstract_padded = np.zeros(
+            (abstract_maxlen), dtype=int)
+        # 2 = <PAD>
+        abstract_padded[:] = 2
+        abstract_padded[:len(abstract_indexed)
+                        ] = abstract_indexed
 
-        keywords_test_tokens_output_dset = f.create_dataset(
-            "keywords_test_tokens_output", (n_keywords_test, keyword_maxlen), dtype='i8')
+        keyword_clean = keyword.strip()
+        keyword_indexed = bpe_to_index(
+            keyword_clean, word2index, keyword_maxlen)
 
-        keywords_test_tokens_output_dset[:, :] = 2
+        keyword_padded = np.zeros((keyword_maxlen), dtype=int)
+        keyword_out_padded = np.zeros((keyword_maxlen), dtype=int)
+        # 2 = <PAD>
+        keyword_padded[:] = 2
+        keyword_out_padded[:] = 2
 
-        abstracts_train_tokens_dset = f.create_dataset(
-            "abstracts_train_tokens", (n_keywords_train, abstract_maxlen), dtype='i8')
+        keyword_padded[:len(keyword_indexed)] = keyword_indexed
 
-        abstracts_train_tokens_dset[:, :] = 2
+        # Out: shift target by one
+        keyword_out_padded[:len(keyword_indexed) -
+                           1] = keyword_indexed[1:]
 
-        abstracts_test_tokens_dset = f.create_dataset(
-            "abstracts_test_tokens", (n_keywords_test, abstract_maxlen), dtype='i8')
+        return abstract_padded, keyword_padded, keyword_out_padded
 
-        abstracts_test_tokens_dset[:, :] = 2
+    def tf_example_generator_factory(start, stop):
+        def tf_example_generator():
+            # Generator for serialized example messages from our dataset
+            with open(keywords_train, 'r') as keywords_file:
+                with open(abstracts_train, 'r') as abstracts_file:
+                    for keyword, abstract in itertools.islice(zip(keywords_file, abstracts_file), start, stop):
+                        yield serialize_train_example(*clean_index_pad(keyword, abstract))
+        return tf_example_generator
 
-        with open(keywords_train, 'r') as f:
-            for i, l in enumerate(f):
-                if i % 10000 == 0:
-                    sys.stdout.write("Processing keyword: %d   \r" % (i))
-                    sys.stdout.flush()
+    serialized_features_dataset = tf.data.Dataset.from_generator(
+        tf_example_generator_factory(
+            start=0, stop=n_keywords_train), output_types=tf.string, output_shapes=())
 
-                indexed = bpe_to_index(
-                    l, word2index, keyword_maxlen)
+    writer = tf.data.experimental.TFRecordWriter(tfrecord_filename)
+    writer.write(serialized_features_dataset)
 
-                if i < n_keywords_train:
-                    keywords_train_tokens_dset[shuffled[i], :len(
-                        indexed)] = indexed
-                    keywords_train_tokens_output_dset[shuffled[i], :len(
-                        indexed) - 1] = indexed[1:]
-                else:
-                    keywords_test_tokens_dset[i -
-                                              n_keywords_train, :len(indexed)] = indexed
-                    keywords_test_tokens_output_dset[i - n_keywords_train, :len(
-                        indexed) - 1] = indexed[1:]
+    serialized_features_dataset = tf.data.Dataset.from_generator(
+        tf_example_generator_factory(
+            start=n_keywords_train, stop=n_keywords), output_types=tf.string, output_shapes=())
 
-        with open(abstracts_train, 'r') as f:
-            for i, l in enumerate(f):
-                if i % 10000 == 0:
-                    sys.stdout.write("Processing abstract: %d   \r" % (i))
-                    sys.stdout.flush()
-
-                tokens = l.split()
-                if i < n_keywords_train:
-                    abstracts_train_tokens_dset[shuffled[i], :len(tokens) + 2] = bpe_to_index(
-                        l, word2index, abstract_maxlen)
-                else:
-                    abstracts_test_tokens_dset[i - n_keywords_train, :len(tokens) + 2] = bpe_to_index(
-                        l, word2index, abstract_maxlen)
+    writer = tf.data.experimental.TFRecordWriter(tfrecord_validation_filename)
+    writer.write(serialized_features_dataset)
 
 
 def main():
@@ -134,8 +143,8 @@ def main():
         write_tokenized_corpus()
     elif sys.argv[1] == "write_bpe_vocab":
         write_bpe_vocab()
-    elif sys.argv[1] == "write_train_hdf5":
-        write_train_hdf5()
+    elif sys.argv[1] == "write_train_tfrecord":
+        write_train_tfrecord()
 
 
 if __name__ == "__main__":

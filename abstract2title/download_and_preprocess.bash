@@ -8,8 +8,8 @@
 # subword-nmt apply-bpe -c data/codes.bpe --vocabulary data/titles_train_vocab.bpe --vocabulary-threshold 1 < data/titles_train_tokens.txt > data/titles_train_tokens.bpe
 # subword-nmt apply-bpe -c data/codes.bpe --vocabulary data/abstracts_train_vocab.bpe --vocabulary-threshold 1 < data/abstracts_train_tokens.txt > data/abstracts_train_tokens.bpe
 
-subword-nmt apply-bpe -c data/codes.bpe --vocabulary data/titles_train_vocab.bpe --vocabulary-threshold 1 < data/titles_test_tokens.txt > data/titles_test_tokens.bpe
-subword-nmt apply-bpe -c data/codes.bpe --vocabulary data/abstracts_train_vocab.bpe --vocabulary-threshold 1 < data/abstracts_test_tokens.txt > data/abstracts_test_tokens.bpe
+# subword-nmt apply-bpe -c data/codes.bpe --vocabulary data/titles_train_vocab.bpe --vocabulary-threshold 1 < data/titles_test_tokens.txt > data/titles_test_tokens.bpe
+# subword-nmt apply-bpe -c data/codes.bpe --vocabulary data/abstracts_train_vocab.bpe --vocabulary-threshold 1 < data/abstracts_test_tokens.txt > data/abstracts_test_tokens.bpe
 
 # python3.6 preprocessing.py write_bpe_vocab
-# python3.6 preprocessing.py write_train_hdf5
+python3.6 preprocessing.py write_train_tfrecord
