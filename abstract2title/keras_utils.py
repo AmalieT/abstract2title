@@ -1,8 +1,8 @@
 import tensorflow as tf
-from keras.callbacks import Callback
+from tensorflow.keras.callbacks import Callback
 import random
 import logging
-from keras.utils.io_utils import HDF5Matrix
+from tensorflow.keras.utils import HDF5Matrix
 from tensorflow.keras.layers import Layer
 
 
