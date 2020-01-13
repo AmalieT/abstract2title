@@ -18,18 +18,23 @@ from keras_utils import BatchCheckpoint, BatchEarlyStopping, DecodeVal, transfor
 import math
 import tensorflow as tf
 import tensorflow_probability as tfp
+import pathlib
 
+base_path = os.path.join(pathlib.Path().absolute(), "data")
 batch_size = 256
 epochs = 15
 title_maxlen = 32
 abstract_maxlen = 256
 
-word2index = pickle.load(open(os.path.join("data", 'word2index.pkl'), 'rb'))
-index2word = pickle.load(open(os.path.join("data", 'index2word.pkl'), 'rb'))
+train_size = 4432384
+val_size = 375
 
-datapath = os.path.join("data", "abstract2title.tfrecord")
+word2index = pickle.load(open(os.path.join(base_path, 'word2index.pkl'), 'rb'))
+index2word = pickle.load(open(os.path.join(base_path, 'index2word.pkl'), 'rb'))
+
+datapath = os.path.join(base_path, "abstract2title.tfrecord")
 validation_datapath = os.path.join(
-    "data", "abstract2title_val.tfrecord")
+    base_path, "abstract2title_val.tfrecord")
 
 
 def feature_label_pairs(example):
@@ -44,10 +49,10 @@ def feature_label_pairs(example):
 
 
 dataset = tf.data.TFRecordDataset(
-    [datapath]).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).shuffle(10 * batch_size).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+    [datapath]).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).shuffle(10 * batch_size).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE).repeat()
 
 validation_dataset = tf.data.TFRecordDataset(
-    [validation_datapath]).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE).cache()
+    [validation_datapath]).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).prefetch(tf.data.experimental.AUTOTUNE).repeat()
 
 vocab_size = len(word2index.items())
 
@@ -78,7 +83,7 @@ with mirrored_strategy.scope():
                 loss=sparse_cross_entropy, metrics=[accuracy])
 model.summary()
 path_checkpoint = os.path.join(
-    "data", 'abstract2title_transformer_checkpoint.{epoch:02d}-{val_loss:.2f}.keras')
+    base_path, 'abstract2title_transformer_checkpoint.{epoch:02d}-{val_loss:.2f}.keras')
 
 try:
   model.load_weights(path_checkpoint)
@@ -106,5 +111,7 @@ model.fit(dataset,
           epochs=epochs,
           shuffle='batch',
           callbacks=callbacks,
-          validation_data=validation_dataset
+          validation_data=validation_dataset,
+          steps_per_epoch=int(train_size / batch_size),
+          validation_steps=val_size
           )
