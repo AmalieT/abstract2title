@@ -91,16 +91,15 @@ callback_checkpoint = tf.keras.callbacks.ModelCheckpoint(
     path_checkpoint, save_weights_only=True, monitor='val_loss')
 
 
-callback_early_stopping = EarlyStopping(monitor='val_loss',
-                                        patience=3, verbose=1)
+callback_early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                           patience=3, verbose=1)
 
 # callback_decode_val = DecodeVal(model=model, eval_every=3000, decode_function=predict,
 # validation_data=validation_dataset, word2index=word2index, index2word=index2word, n_eval=1, beam_width=2)
 
 
 callbacks = [callback_early_stopping,
-             callback_checkpoint,
-             callback_checkpoint_backup, ]
+             callback_checkpoint, ]
 # callback_decode_val]
 
 model.fit(dataset,
