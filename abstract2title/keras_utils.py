@@ -6,104 +6,108 @@ from keras.utils.io_utils import HDF5Matrix
 from tensorflow.keras.layers import Layer
 
 
-
-#Sparse cross entropy with mask on padding
+# Sparse cross entropy with mask on padding
 def sparse_cross_entropy(y_true, y_pred):
-  # y_true = tf.reshape(y_true, shape=(-1, title_maxlen))
+    # y_true = tf.reshape(y_true, shape=(-1, title_maxlen))
 
-  loss = tf.keras.losses.SparseCategoricalCrossentropy(
-      from_logits=True, reduction='none')(y_true, y_pred)
+    loss = tf.keras.losses.SparseCategoricalCrossentropy(
+        from_logits=True, reduction='none')(y_true, y_pred)
 
-  mask = tf.cast(tf.not_equal(y_true, 2), tf.float32)
-  loss = tf.multiply(loss, mask)
+    mask = tf.cast(tf.not_equal(y_true, 2), tf.float32)
+    loss = tf.multiply(loss, mask)
 
-  return tf.reduce_mean(loss)
+    return tf.reduce_mean(loss)
 
-#A custom learning rate schedule for transformer networks
+# A custom learning rate schedule for transformer networks
+
+
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
-  def __init__(self, d_model=256, warmup_steps=4000):
-    super(CustomSchedule, self).__init__()
+    def __init__(self, d_model=256, warmup_steps=4000):
+        super(CustomSchedule, self).__init__()
 
-    self.d_model = d_model
-    self.d_model = tf.cast(self.d_model, tf.float32)
+        self.d_model = d_model
+        self.d_model = tf.cast(self.d_model, tf.float32)
 
-    self.warmup_steps = warmup_steps
+        self.warmup_steps = warmup_steps
 
-  def __call__(self, step):
-    arg1 = tf.math.rsqrt(step)
-    arg2 = step * (self.warmup_steps**-1.5)
+    def __call__(self, step):
+        arg1 = tf.math.rsqrt(step)
+        arg2 = step * (self.warmup_steps**-1.5)
 
-    return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+        return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+
 
 def sample_without_replacement(logits, K):
-  """
-  Sample from a tensor of logits without replacement using the Gumbel max trick
+    """
+    Sample from a tensor of logits without replacement using the Gumbel max trick
 
-  https://arxiv.org/pdf/1903.06059.pdf
-  http://timvieira.github.io/blog/post/2014/08/01/gumbel-max-trick-and-weighted-reservoir-sampling/
-  This trick is so fucking cool. Who comes up with this shit?
+    https://arxiv.org/pdf/1903.06059.pdf
+    http://timvieira.github.io/blog/post/2014/08/01/gumbel-max-trick-and-weighted-reservoir-sampling/
+    This trick is so fucking cool. Who comes up with this shit?
 
-  Note that the distribution doesn't depend on logits or K, meaning no costly distribution instantiations
-  The world is your oyster with the Gumbel max trick.
-  """
-  dist = tfp.distributions.Gumbel(loc=0, scale=1)
-  z = dist.sample(tf.shape(logits))
-  _, indices = tf.nn.top_k(logits + z, K)
-  return indices
+    Note that the distribution doesn't depend on logits or K, meaning no costly distribution instantiations
+    The world is your oyster with the Gumbel max trick.
+    """
+    dist = tfp.distributions.Gumbel(loc=0, scale=1)
+    z = dist.sample(tf.shape(logits))
+    _, indices = tf.nn.top_k(logits + z, K)
+    return indices
 
 
 def stochastic_beam_search(model, sentence, maxlen, beam_width=5, bos_ind=0, eos_ind=1):
-  # Make a prediction using a stochastic beam search
-  initial_output = [bos_ind]
-  beams = [(initial_output, 0)]
+    # Make a prediction using a stochastic beam search
+    initial_output = [bos_ind]
+    beams = [(initial_output, 0)]
 
-  sentence = tf.expand_dims(sentence, axis=0)
+    sentence = tf.expand_dims(sentence, axis=0)
 
-  isComplete = False
+    isComplete = False
 
-  while not isComplete:
-    new_beams = []
-    for beam in beams:
-      if len(beam[0]) > maxlen:
-        isComplete = True
-      if beam[0][-1] == eos_ind:
-        new_beams.append(beam)
-        continue
-      output = tf.expand_dims(beam[0], 0)
-      predictions = model(
-          inputs=[sentence, output], training=False)
+    while not isComplete:
+        new_beams = []
+        for beam in beams:
+            if len(beam[0]) > maxlen:
+                isComplete = True
+            if beam[0][-1] == eos_ind:
+                new_beams.append(beam)
+                continue
+            output = tf.expand_dims(beam[0], 0)
+            predictions = model(
+                inputs=[sentence, output], training=False)
 
-      predictions = tf.nn.log_softmax(predictions[:, -1:, :])
+            predictions = tf.nn.log_softmax(predictions[:, -1:, :])
 
-      predictions = tf.squeeze(predictions)
+            predictions = tf.squeeze(predictions)
 
-      top_k_indices = sample_without_replacement(predictions, beam_width)
+            top_k_indices = sample_without_replacement(predictions, beam_width)
 
-      for ind in top_k_indices.numpy()[:beam_width]:
-        prob = predictions[ind].numpy() + beam[1]
-        new_output = beam[0] + [ind]
-        new_beams.append((new_output, prob))
+            for ind in top_k_indices.numpy()[:beam_width]:
+                prob = predictions[ind].numpy() + beam[1]
+                new_output = beam[0] + [ind]
+                new_beams.append((new_output, prob))
 
-    beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[:beam_width]
-    if all([beam[0][-1] == eos_ind for beam in beams]):
-      isComplete = True
+        beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[
+            :beam_width]
+        if all([beam[0][-1] == eos_ind for beam in beams]):
+            isComplete = True
 
-  return beams
+    return beams
 
 
 def predict(model, sentence, word2index, index2word, beam_width=5, n_beams=2, maxlen=32):
-  beams = stochastic_beam_search(model,
-                                 sentence, maxlen=maxlen, beam_width=beam_width, bos_ind=word2index['<BOS>'], eos_ind=word2index['<EOS'])
+    beams = stochastic_beam_search(model,
+                                   sentence, maxlen=maxlen, beam_width=beam_width, bos_ind=word2index['<BOS>'], eos_ind=word2index['<EOS'])
 
-  predictions = []
-  for beam in beams:
-    predicted_sentence = " ".join([index2word[t] for t in beam[0]])
-    predictions.append((predicted_sentence, math.exp(beam[1])))
+    predictions = []
+    for beam in beams:
+        predicted_sentence = " ".join([index2word[t] for t in beam[0]])
+        predictions.append((predicted_sentence, math.exp(beam[1])))
 
-  predictions = sorted(predictions, key=lambda x: x[1], reverse=True)[:n_beams]
+    predictions = sorted(predictions, key=lambda x: x[1], reverse=True)[
+        :n_beams]
 
-  return predictions
+    return predictions
 
 # A callback to print a decoded sequence from the validation set every n batches
 
@@ -139,15 +143,16 @@ class DecodeVal(Callback):
                     "@@ ", "").replace(" <PAD>", ""))
 
                 if self.beam_width is None:
-                    eval_sequence = self.decode_function(self.model, eval_input, self.word2index, self.index2word, maxlen=self.maxlen)
+                    eval_sequence = self.decode_function(
+                        self.model, eval_input, self.word2index, self.index2word, maxlen=self.maxlen)
                     print("\n")
                     print("Predicted Sequence: ")
                     print(eval_sequence.replace(
                         "@@ ", "").replace(" <PAD>", ""))
 
                 else:
-                    eval_sequences = self.decode_function(self.model, 
-                        eval_input, self.word2index, self.index2word, beam_width=self.beam_width, maxlen=self.maxlen)
+                    eval_sequences = self.decode_function(self.model,
+                                                          eval_input, self.word2index, self.index2word, beam_width=self.beam_width, maxlen=self.maxlen)
 
                     print("\n")
                     print("Predicted Sequences: ")
@@ -628,7 +633,6 @@ def encoder_classifier(vocab_size,
                        dropout,
                        num_classes,
                        abstract_maxlen,
-                       d_embed,
                        name="transformer"):
     inputs = tf.keras.Input(shape=(abstract_maxlen,), name="inputs")
 
@@ -645,13 +649,10 @@ def encoder_classifier(vocab_size,
         dropout=dropout,
     )(inputs=[inputs, enc_padding_mask])
 
-    dense_flat = tf.keras.layers.Reshape(
-        (abstract_maxlen * d_model,))(enc_outputs)
-
-    dense = tf.keras.layers.Dense(
-        units=d_embed, name="dense")(dense_flat)
+    dense_flat = tf.keras.layers.Lambda(
+        lambda x: tf.keras.backend.sum(x, axis=1), input_shape=(abstract_maxlen, d_model))(enc_outputs)
 
     outputs = tf.keras.layers.Dense(
-        units=num_classes, name="outputs")(dense)
+        units=num_classes, name="outputs")(dense_flat)
 
     return tf.keras.Model(inputs=inputs, outputs=outputs, name=name)

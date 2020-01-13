@@ -29,7 +29,7 @@ index2word = pickle.load(open(os.path.join("data", 'index2word.pkl'), 'rb'))
 
 datapath = os.path.join("data", "abstract2title.tfrecord")
 validation_datapath = os.path.join(
-    "data", "abstract2title_validation.tfrecord")
+    "data", "abstract2title_val.tfrecord")
 
 
 def feature_label_pairs(example):
@@ -44,19 +44,19 @@ def feature_label_pairs(example):
 
 
 dataset = tf.data.TFRecordDataset(
-    [datapath]).shuffle(tf.data.experimental.AUTOTUNE).batch(batch_size).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).prefetch(tf.data.experimental.AUTOTUNE)
+    [datapath]).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).shuffle(10 * batch_size).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
 validation_dataset = tf.data.TFRecordDataset(
-    [validation_datapath]).batch(batch_size).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).prefetch(tf.data.experimental.AUTOTUNE).cache()
+    [validation_datapath]).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE).cache()
 
 vocab_size = len(word2index.items())
 
 learning_rate = CustomSchedule()
 
-optimizer = tf.keras.optimizers.Adam(
-    learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+# optimizer = tf.keras.optimizers.Adam(
+# learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
-# optimizer = tf.keras.optimizers.SGD(learning_rate=0.0001)
+optimizer = tf.keras.optimizers.SGD(learning_rate=0.0001)
 
 
 def accuracy(y_true, y_pred):
@@ -77,10 +77,8 @@ with mirrored_strategy.scope():
   model.compile(optimizer=optimizer,
                 loss=sparse_cross_entropy, metrics=[accuracy])
 model.summary()
-
-path_checkpoint = 'abstract2title_transformer_checkpoint.keras'
-
-path_checkpoint_backup = 'abstract2title_transformer_checkpoint_backup.keras'
+path_checkpoint = os.path.join(
+    "data", 'abstract2title_transformer_checkpoint.{epoch:02d}-{val_loss:.2f}.keras')
 
 try:
   model.load_weights(path_checkpoint)
@@ -89,16 +87,15 @@ except Exception as error:
   print(error)
 
 
-callback_checkpoint = BatchCheckpoint(name=path_checkpoint, save_every=1000)
+callback_checkpoint = tf.keras.callbacks.ModelCheckpoint(
+    path_checkpoint, save_weights_only=True, monitor='val_loss')
 
-callback_checkpoint_backup = BatchCheckpoint(
-    name=path_checkpoint_backup, save_every=1001)
 
 callback_early_stopping = EarlyStopping(monitor='val_loss',
                                         patience=3, verbose=1)
 
-callback_decode_val = DecodeVal(model=model, eval_every=3000, decode_function=predict,
-                                validation_data=validation_dataset, word2index=word2index, index2word=index2word, n_eval=1, beam_width=2)
+# callback_decode_val = DecodeVal(model=model, eval_every=3000, decode_function=predict,
+# validation_data=validation_dataset, word2index=word2index, index2word=index2word, n_eval=1, beam_width=2)
 
 
 callbacks = [callback_early_stopping,
