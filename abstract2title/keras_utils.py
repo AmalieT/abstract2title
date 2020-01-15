@@ -651,7 +651,7 @@ def encoder_classifier(vocab_size,
         dropout=dropout,
     )(inputs=[inputs, enc_padding_mask])
 
-    flat = tf.keras.layers.Flatten()(enc_outputs)
+    flat = tf.reduce_sum(enc_outputs, axis=-2)
 
     dense_flat = tf.keras.layers.Dense(units=d_model, activation='relu')(flat)
     # dense_flat = tf.keras.layers.Lambda(
