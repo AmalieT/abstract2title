@@ -97,7 +97,7 @@ def stochastic_beam_search(model, sentence, maxlen, beam_width=5, bos_ind=0, eos
 
 def predict(model, sentence, word2index, index2word, beam_width=5, n_beams=2, maxlen=32):
     beams = stochastic_beam_search(model,
-                                   sentence, maxlen=maxlen, beam_width=beam_width, bos_ind=word2index['<BOS>'], eos_ind=word2index['<EOS'])
+                                   sentence, maxlen=maxlen, beam_width=beam_width, bos_ind=word2index['<BOS>'], eos_ind=word2index['<EOS>'])
 
     predictions = []
     for beam in beams:
@@ -349,7 +349,7 @@ def scaled_dot_product_attention(query, key, value, mask):
 
     output = tf.matmul(attention_weights, value)
 
-    return output
+    return output, attention_weights
 
 
 class MultiHeadAttention(Layer):
@@ -390,8 +390,10 @@ class MultiHeadAttention(Layer):
         value = self.split_heads(value, batch_size)
 
         # scaled dot-product attention
-        scaled_attention = scaled_dot_product_attention(
+        scaled_attention, attention_weights = scaled_dot_product_attention(
             query, key, value, mask)
+
+        self.attention_weights = attention_weights
 
         scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])
 
