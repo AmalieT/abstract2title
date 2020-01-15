@@ -29,17 +29,21 @@ word2index = pickle.load(
     open(os.path.join(base_path, 'word2index_a2j.pkl'), 'rb'))
 index2word = pickle.load(
     open(os.path.join(base_path, 'index2word_a2j.pkl'), 'rb'))
+journal2class = pickle.load(
+    open(os.path.join(base_path, 'journal2class.pkl'), 'rb'))
 
 datapath = os.path.join(base_path, "abstract2journal.tfrecord")
 validation_datapath = os.path.join(
     base_path, "abstract2journal_val.tfrecord")
+
+num_classes = len(journal2class.keys())
 
 
 def feature_label_pairs(example):
   parsed_example = tf.io.parse_single_example(
       example, {
           'abstract': tf.io.FixedLenFeature(shape=(abstract_maxlen), dtype=tf.int64),
-          'journal': tf.io.FixedLenFeature(shape=(title_maxlen), dtype=tf.int64),
+          'journal': tf.io.FixedLenFeature(shape=(1), dtype=tf.int64),
       })
   return parsed_example['abstract'], parsed_example['journal']
 
@@ -75,10 +79,10 @@ with mirrored_strategy.scope():
       d_model=256,
       num_heads=8,
       dropout=0.1,
-      num_classes=1,
+      num_classes=num_classes,
       abstract_maxlen=abstract_maxlen)
   model.compile(optimizer=optimizer,
-                loss='binary_crossentropy', metrics=['binary_accuracy'])
+                loss='sparse_categorical_crossentropy', metrics=['sparse_categorical_accuracy'])
 model.summary()
 
 path_checkpoint = os.path.join(
@@ -108,8 +112,9 @@ callback_checkpoint = tf.keras.callbacks.ModelCheckpoint(
 
 
 callbacks = [callback_checkpoint,
-             callback_checkpoint_backup, ]
-# callback_decode_val]
+             # callback_checkpoint_backup, ]
+             # callback_decode_val]
+             ]
 
 model.fit(dataset,
           epochs=epochs,

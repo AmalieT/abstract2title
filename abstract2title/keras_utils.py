@@ -651,10 +651,13 @@ def encoder_classifier(vocab_size,
         dropout=dropout,
     )(inputs=[inputs, enc_padding_mask])
 
-    dense_flat = tf.keras.layers.Lambda(
-        lambda x: tf.keras.backend.sum(x, axis=1), input_shape=(abstract_maxlen, d_model))(enc_outputs)
+    flat = tf.keras.layers.Flatten()(enc_outputs)
+
+    dense_flat = tf.keras.layers.Dense(units=d_model, activation='relu')(flat)
+    # dense_flat = tf.keras.layers.Lambda(
+    #     lambda x: tf.keras.backend.sum(x, axis=1), input_shape=(abstract_maxlen, d_model))(enc_outputs)
 
     outputs = tf.keras.layers.Dense(
-        units=num_classes, name="outputs")(dense_flat)
+        units=num_classes, name="outputs", activation='softmax')(dense_flat)
 
     return tf.keras.Model(inputs=inputs, outputs=outputs, name=name)
