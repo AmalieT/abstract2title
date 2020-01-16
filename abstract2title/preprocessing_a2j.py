@@ -1,23 +1,26 @@
 import h5py
-from vocab_utils import create_bpe_vocab, bpe_to_index, tokenize_corpus, journals_to_class
+from vocab_utils import create_bpe_vocab, bpe_to_index, tokenize_corpus
 import pickle
 import sys
 import os
 from numpy.random import shuffle
 import numpy as np
+import tensorflow as tf
+import itertools
 
 journals_train = os.path.join("data", "journals_train_a2j.txt")
-
-journals_test = os.path.join("data", "journals_test_a2j.txt")
-
 abstracts_train_raw = os.path.join("data", "abstracts_train_a2j.txt")
 abstracts_train_tokens = os.path.join("data", "abstracts_train_a2j_tokens.txt")
-abstracts_train = os.path.join("data", "abstracts_train_a2j_tokens.bpe")
 
+abstracts_train = os.path.join("data", "abstracts_train_a2j_tokens.bpe")
+journals_test_raw = os.path.join("data", "journals_test_a2j.txt")
+journals_test = os.path.join("data", "journals_test_a2j_tokens.txt")
 abstracts_test_raw = os.path.join("data", "abstracts_test_a2j.txt")
 abstracts_test = os.path.join("data", "abstracts_test_a2j_tokens.txt")
 
-hdf5_filename = os.path.join("data", "abstract2journal.hdf5")
+tfrecord_filename = os.path.join("data", "abstract2journal.tfrecord")
+tfrecord_validation_filename = os.path.join(
+    "data", "abstract2journal_val.tfrecord")
 
 
 def write_tokenized_corpus():
@@ -25,19 +28,23 @@ def write_tokenized_corpus():
     tokenize_corpus(abstracts_test_raw, abstracts_test)
 
 
-def write_train_hdf5():
+def write_bpe_vocab():
+    word2index, index2word = create_bpe_vocab(journals_train, abstracts_train)
+    pickle.dump(word2index, open(os.path.join(
+        "data", 'word2index_a2j.pkl'), 'wb'))
+    pickle.dump(index2word, open(os.path.join(
+        "data", 'index2word_a2j.pkl'), 'wb'))
+
+
+def write_train_tfrecord():
+    journal_maxlen = 32
     abstract_maxlen = 256
-    validation_fraction = 0.0005
+    validation_fraction = 0.01
 
     word2index = pickle.load(
-        open(os.path.join("data", 'word2index.pkl'), 'rb'))
+        open(os.path.join("data", 'word2index_a2j.pkl'), 'rb'))
     index2word = pickle.load(
-        open(os.path.join("data", 'index2word.pkl'), 'rb'))
-
-    journal2class = pickle.load(
-        open(os.path.join("data", 'journal2class.pkl'), 'rb'))
-    n_classes = len(journal2class.items())
-    print("N classes: {}".format(n_classes))
+        open(os.path.join("data", 'index2word_a2j.pkl'), 'rb'))
 
     vocab_size = len(word2index.items())
 
@@ -48,65 +55,74 @@ def write_train_hdf5():
         return i + 1
 
     n_journals = file_len(journals_train)
-    n_journals_test = int(file_len(journals_train) * validation_fraction)
-    n_journals_train = file_len(journals_train) - n_journals_test
-    shuffled = np.arange(n_journals_train)
-    shuffle(shuffled)
+    n_journals_validation = int(file_len(journals_train) * validation_fraction)
+    n_journals_train = file_len(journals_train) - n_journals_validation
 
-    with h5py.File(hdf5_filename, "w") as f:
-        journals_train_dset = f.create_dataset(
-            "journals_train", (n_journals_train, n_classes), dtype='i8')
+    def _int64_feature(value):
+        return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
 
-        journals_train_dset[:, :] = 0
+    def serialize_train_example(abstract, journal):
+        """
+        Creates a tf.Example message ready to be written to a file.
+        """
+        # Create a dictionary mapping the feature name to the tf.Example-compatible
+        # data type.
+        feature = {
+            'abstract': _int64_feature(abstract),
+            'journal': _int64_feature(journal)
+        }
 
-        journals_test_dset = f.create_dataset(
-            "journals_test", (n_journals_test, n_classes), dtype='i8')
+        # Create a Features message using tf.train.Example.
 
-        journals_test_dset[:, :] = 0
+        example_proto = tf.train.Example(
+            features=tf.train.Features(feature=feature))
+        return example_proto.SerializeToString()
 
-        abstracts_train_tokens_dset = f.create_dataset(
-            "abstracts_train_tokens", (n_journals_train, abstract_maxlen), dtype='i8')
+    def clean_index_pad(abstract, journal):
+        abstract_clean = abstract.strip()
+        abstract_indexed = bpe_to_index(
+            abstract_clean, word2index, abstract_maxlen)
 
-        abstracts_train_tokens_dset[:, :] = 2
+        abstract_padded = np.zeros(
+            (abstract_maxlen), dtype=int)
+        # 2 = <PAD>
+        abstract_padded[:] = 2
+        abstract_padded[:len(abstract_indexed)
+                        ] = abstract_indexed
 
-        abstracts_test_tokens_dset = f.create_dataset(
-            "abstracts_test_tokens", (n_journals_test, abstract_maxlen), dtype='i8')
+        return abstract_padded, [journal]
 
-        abstracts_test_tokens_dset[:, :] = 2
+    def tf_example_generator_factory(start, stop):
+        def tf_example_generator():
+            # Generator for serialized example messages from our dataset
+            with open(journals_train, 'r') as journals_file:
+                with open(abstracts_train, 'r') as abstracts_file:
+                    for journal, abstract in itertools.islice(zip(journals_file, abstracts_file), start, stop):
+                        yield serialize_train_example(*clean_index_pad(abstract, int(journal.strip())))
+        return tf_example_generator
 
-        with open(journals_train, 'r') as f:
-            for i, l in enumerate(f):
-                if i % 10000 == 0:
-                    sys.stdout.write("Processing journal: %d   \r" % (i))
-                    sys.stdout.flush()
+    serialized_features_dataset = tf.data.Dataset.from_generator(
+        tf_example_generator_factory(
+            start=0, stop=n_journals_train), output_types=tf.string, output_shapes=())
 
-                journal_class = int(l.strip())
-                if i < n_journals_train:
-                    journals_train_tokens_dset[shuffled[i], journal_class] = 1
-                else:
-                    journals_test_tokens_dset[i -
-                                              n_journals_train, journal_class] = 1
+    writer = tf.data.experimental.TFRecordWriter(tfrecord_filename)
+    writer.write(serialized_features_dataset)
 
-        with open(abstracts_train, 'r') as f:
-            for i, l in enumerate(f):
-                if i % 10000 == 0:
-                    sys.stdout.write("Processing abstract: %d   \r" % (i))
-                    sys.stdout.flush()
+    serialized_features_dataset = tf.data.Dataset.from_generator(
+        tf_example_generator_factory(
+            start=n_journals_train, stop=n_journals), output_types=tf.string, output_shapes=())
 
-                tokens = l.split()
-                if i < n_journals_train:
-                    abstracts_train_tokens_dset[shuffled[i], :len(tokens) + 2] = bpe_to_index(
-                        l, word2index, abstract_maxlen)
-                else:
-                    abstracts_test_tokens_dset[i - n_journals_train, :len(tokens) + 2] = bpe_to_index(
-                        l, word2index, abstract_maxlen)
+    writer = tf.data.experimental.TFRecordWriter(tfrecord_validation_filename)
+    writer.write(serialized_features_dataset)
 
 
 def main():
     if sys.argv[1] == "write_tokenized_corpus":
         write_tokenized_corpus()
-    elif sys.argv[1] == "write_train_hdf5":
-        write_train_hdf5()
+    elif sys.argv[1] == "write_bpe_vocab":
+        write_bpe_vocab()
+    elif sys.argv[1] == "write_train_tfrecord":
+        write_train_tfrecord()
 
 
 if __name__ == "__main__":

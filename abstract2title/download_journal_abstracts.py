@@ -27,7 +27,7 @@ for i, d in enumerate(db.entries.find()):
         if d['journal'] is not None and d['abstract'] is not None:
             try:
                 current_count = class_dict[d['journal']]
-                class_dict[l] = (
+                class_dict[d['journal']] = (
                     current_count[0], current_count[1] + 1)
             except KeyError:
                 class_dict[d['journal']] = (i_class, 1)
@@ -38,6 +38,13 @@ for i, d in enumerate(db.entries.find()):
 class_dict = {k: v[0]
               for k, v in class_dict.items() if v[1] >= min_paper_count}
 
+new_class_dict = dict()
+for i, k in enumerate(class_dict.keys()):
+    new_class_dict[k] = i
+
+class_dict = new_class_dict
+print(len(class_dict.items()))
+
 for i, d in enumerate(db.entries.find()):
     if i % 10000 == 0:
         print(i)
@@ -45,8 +52,9 @@ for i, d in enumerate(db.entries.find()):
         if d['journal'] is not None and d['abstract'] is not None:
             try:
                 journal_class = class_dict[d['journal']]
-                rel_strings.append(
-                    (journal_class, ' '.join(d['abstract'].split())))
+                if len(d['abstract'].split()) > 10:
+                    rel_strings.append(
+                        (journal_class, ' '.join(d['abstract'].split())))
             except KeyError:
                 pass
     except:
@@ -59,8 +67,8 @@ pickle.dump(inv_class_dict, open(
     os.path.join("data", 'class2journal.pkl'), 'wb'))
 
 shuffle(rel_strings)
-
-train_split = int(0.9 * len(rel_strings))
+print(len(rel_strings))
+train_split = int(0.95 * len(rel_strings))
 
 journals_train = os.path.join("data", "journals_train_a2j.txt")
 abstracts_train = os.path.join("data", "abstracts_train_a2j.txt")
@@ -74,11 +82,11 @@ if not os.path.exists(os.path.dirname(journals_train)):
 with open(journals_train, 'w') as f:
     with open(abstracts_train, 'w') as g:
         for t, a in rel_strings[:train_split]:
-            f.write(t + "\n")
+            f.write(str(t) + "\n")
             g.write(a + "\n")
 
 with open(journals_test, 'w') as f:
     with open(abstracts_test, 'w') as g:
         for t, a in rel_strings[train_split:]:
-            f.write(t + "\n")
+            f.write(str(t) + "\n")
             g.write(a + "\n")

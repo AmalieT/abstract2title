@@ -52,7 +52,7 @@ dataset = tf.data.TFRecordDataset(
     [datapath]).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).shuffle(10 * batch_size).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE).repeat()
 
 validation_dataset = tf.data.TFRecordDataset(
-    [validation_datapath]).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).prefetch(tf.data.experimental.AUTOTUNE).repeat()
+    [validation_datapath]).map(feature_label_pairs, num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(1).prefetch(tf.data.experimental.AUTOTUNE).repeat()
 
 vocab_size = len(word2index.items())
 
@@ -76,14 +76,14 @@ with mirrored_strategy.scope():
       vocab_size=vocab_size,
       num_layers=2,
       units=512,
-      d_model=256,
+      d_model=128,
       num_heads=8,
       dropout=0.1)
   model.compile(optimizer=optimizer,
                 loss=sparse_cross_entropy, metrics=[accuracy])
 model.summary()
 path_checkpoint = os.path.join(
-    base_path, 'abstract2title_transformer_checkpoint.{epoch:02d}-{val_loss:.2f}.keras')
+    base_path, 'abstract2title_transformer_checkpoint_val.{epoch:02d}-{val_loss:.2f}.keras')
 
 try:
   model.load_weights(path_checkpoint)
@@ -112,6 +112,6 @@ model.fit(dataset,
           shuffle='batch',
           callbacks=callbacks,
           validation_data=validation_dataset,
-          steps_per_epoch=int(train_size / batch_size),
+          steps_per_epoch=batch_size,
           validation_steps=val_size
           )

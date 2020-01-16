@@ -28,8 +28,9 @@ for i, d in enumerate(db.entries.find()):
                 keywords = d['keywords'].split().sort()
             if len(keywords) > len(keyword_max):
                 keyword_max = keywords
-            rel_strings.append((
-                ' '.join(keywords), ' '.join(d['abstract'].split())))
+            if len(d['abstract'].split()) > 10:
+                rel_strings.append((
+                    ' '.join(keywords), ' '.join(d['abstract'].split())))
     except:
         pass
 

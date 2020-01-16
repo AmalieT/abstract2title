@@ -8,18 +8,18 @@ import numpy as np
 import tensorflow as tf
 import itertools
 
-keywords_train_raw = os.path.join("data", "keywords_train.txt")
-keywords_train_tokens = os.path.join("data", "keywords_train_tokens.txt")
+keywords_train_raw = os.path.join("data", "keywords_train_a2k.txt")
+keywords_train_tokens = os.path.join("data", "keywords_train_a2k_tokens.txt")
 
-keywords_train = os.path.join("data", "keywords_train_tokens.bpe")
-abstracts_train_raw = os.path.join("data", "abstracts_train.txt")
-abstracts_train_tokens = os.path.join("data", "abstracts_train_tokens.txt")
+keywords_train = os.path.join("data", "keywords_train_a2k_tokens.bpe")
+abstracts_train_raw = os.path.join("data", "abstracts_train_a2k.txt")
+abstracts_train_tokens = os.path.join("data", "abstracts_train_a2k_tokens.txt")
 
-abstracts_train = os.path.join("data", "abstracts_train_tokens.bpe")
-keywords_test_raw = os.path.join("data", "keywords_test.txt")
-keywords_test = os.path.join("data", "keywords_test_tokens.txt")
-abstracts_test_raw = os.path.join("data", "abstracts_test.txt")
-abstracts_test = os.path.join("data", "abstracts_test_tokens.txt")
+abstracts_train = os.path.join("data", "abstracts_train_a2k_tokens.bpe")
+keywords_test_raw = os.path.join("data", "keywords_test_a2k.txt")
+keywords_test = os.path.join("data", "keywords_test_a2k_tokens.txt")
+abstracts_test_raw = os.path.join("data", "abstracts_test_a2k.txt")
+abstracts_test = os.path.join("data", "abstracts_test_a2k_tokens.txt")
 
 tfrecord_filename = os.path.join("data", "abstract2keyword.tfrecord")
 tfrecord_validation_filename = os.path.join(
@@ -44,7 +44,7 @@ def write_bpe_vocab():
 def write_train_tfrecord():
     keyword_maxlen = 32
     abstract_maxlen = 256
-    validation_fraction = 0.0001
+    validation_fraction = 0.01
 
     word2index = pickle.load(
         open(os.path.join("data", 'word2index_a2k.pkl'), 'rb'))
@@ -62,6 +62,19 @@ def write_train_tfrecord():
     n_keywords = file_len(keywords_train)
     n_keywords_validation = int(file_len(keywords_train) * validation_fraction)
     n_keywords_train = file_len(keywords_train) - n_keywords_validation
+
+    print(n_keywords)
+    print(n_keywords_validation)
+    print(n_keywords_train)
+
+    print(file_len(abstracts_train_raw))
+    print(file_len(keywords_train_raw))
+
+    print(file_len(abstracts_train_tokens))
+    print(file_len(keywords_train_tokens))
+
+    print(file_len(abstracts_train))
+    print(file_len(keywords_train))
 
     def _int64_feature(value):
         return tf.train.Feature(int64_list=tf.train.Int64List(value=value))

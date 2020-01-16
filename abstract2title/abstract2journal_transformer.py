@@ -82,7 +82,7 @@ with mirrored_strategy.scope():
       num_classes=num_classes,
       abstract_maxlen=abstract_maxlen)
   model.compile(optimizer=optimizer,
-                loss='sparse_categorical_crossentropy', metrics=['sparse_categorical_accuracy'])
+                loss='sparse_categorical_crossentropy', metrics=['sparse_categorical_accuracy', tf.keras.metrics.SparseTopKCategoricalAccuracy(k=5, name="top_5"), tf.keras.metrics.SparseTopKCategoricalAccuracy(k=10, name="top_10")])
 model.summary()
 
 path_checkpoint = os.path.join(
