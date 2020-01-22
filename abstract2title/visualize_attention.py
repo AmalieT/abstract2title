@@ -7,26 +7,13 @@ with open("attention_weights_visual.json", 'r') as f:
     for l in f:
         examples.append(json.loads(l))
 
-# for i, example in enumerate(examples):
-#     abstract_tokens = [x for x in example[0][1].split() if x not in [
-#         "<PAD>", "<BOS>"]]
-#     title_tokens = [x for x in example[0][0].split() if x != "<BOS>"]
-#     print(example[0][0])
-#     print(i, len(abstract_tokens), len(
-#         title_tokens))
-#     print(np.shape(example[0][3]))
-#     print(np.sum(example[0][3]) / len(title_tokens))
-
-#     print(i)
-#     print(example[0][0])
-#     print(example[1][0])
-#     print("\n")
-# with open('attention_map_normalized.json', 'w') as f:
-    # for j, example in enumerate(examples):
-for y in [0]:
-    for u in [0]:
-        visualize_example = examples[74][0]
-        # print(j, visualize_example[0])
+with open('attention_map_normalized.json', 'w') as f:
+    for j, example in enumerate(examples):
+        # for y in [0]:
+        # for u in [0]:
+        # visualize_example = examples[74][0]
+        visualize_example = example[0]
+        print(j, visualize_example[0])
 
         title_tokens = [x for x in visualize_example[0].split()
                         if x != "<BOS>"]
@@ -80,9 +67,9 @@ for y in [0]:
         attention_map['title'] = title_tokens
         attention_map['abstract'] = abstract_tokens
         attention_map['attention weights'] = heat_map_data_no_padding.tolist()
-        # f.write(json.dumps(attention_map) + "\n")
+        f.write(json.dumps(attention_map) + "\n")
 
-        seaborn.heatmap(heat_map_data_no_padding, xticklabels=abstract_tokens,
-                        yticklabels=title_tokens, cmap='inferno_r')
+        # seaborn.heatmap(heat_map_data_no_padding, xticklabels=abstract_tokens,
+        #                 yticklabels=title_tokens, cmap='inferno_r')
 
-        plt.show()
+        # plt.show()

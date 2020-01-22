@@ -638,6 +638,11 @@ def encoder_classifier(vocab_size,
                        name="transformer"):
     inputs = tf.keras.Input(shape=(abstract_maxlen,), name="inputs")
 
+    embeddings = tf.keras.layers.Embedding(vocab_size, d_model)(inputs)
+    embeddings *= tf.math.sqrt(tf.cast(d_model, tf.float32))
+    embeddings = PositionalEncoding(vocab_size, d_model)(embeddings)
+    embeddings = tf.keras.layers.Dropout(rate=dropout)(embeddings)
+
     enc_padding_mask = tf.keras.layers.Lambda(
         create_padding_mask, output_shape=(1, 1, abstract_maxlen),
         name='enc_padding_mask')(inputs)
@@ -651,13 +656,24 @@ def encoder_classifier(vocab_size,
         dropout=dropout,
     )(inputs=[inputs, enc_padding_mask])
 
-    flat = tf.reduce_sum(enc_outputs, axis=-2)
+    # flat = tf.keras.layers.Flatten()(enc_outputs)
 
-    dense_flat = tf.keras.layers.Dense(units=d_model, activation='relu')(flat)
+    dense_flat = tf.keras.layers.Dense(
+        units=d_model, activation='relu')(enc_outputs)
+    dense_flat = tf.keras.layers.Dropout(rate=dropout)(dense_flat)
+    dense_flat = tf.keras.layers.LayerNormalization(
+        epsilon=1e-6)(dense_flat + embeddings)
+
+    # dense_flat = tf.keras.layers.Flatten()(dense_flat)
+    # dense_flat = tf.keras.layers.Dense(
+    #     units=d_model, activation='relu')(dense_flat)
+
     # dense_flat = tf.keras.layers.Lambda(
-    #     lambda x: tf.keras.backend.sum(x, axis=1), input_shape=(abstract_maxlen, d_model))(enc_outputs)
+    # lambda x: tf.keras.backend.sum(x, axis=1), input_shape=(abstract_maxlen, d_model))(enc_outputs)
+
+    pool_layer = tf.keras.layers.GlobalAveragePooling1D()(dense_flat)
 
     outputs = tf.keras.layers.Dense(
-        units=num_classes, name="outputs", activation='softmax')(dense_flat)
+        units=num_classes, name="outputs", activation='softmax')(pool_layer)
 
     return tf.keras.Model(inputs=inputs, outputs=outputs, name=name)
