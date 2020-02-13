@@ -12,7 +12,7 @@ def grouper(iterable, n, fillvalue=None):
     return zip_longest(*args, fillvalue=fillvalue)
 
 
-min_paper_count = 10
+min_paper_count = 20
 client = pymongo.MongoClient(os.getenv("MATSCHOLAR_STAGING_HOST"), username=os.getenv("MATSCHOLAR_STAGING_USER"),
                              password=os.getenv("MATSCHOLAR_STAGING_PASS"), authSource=os.getenv("MATSCHOLAR_STAGING_DB"))
 db = client['matscholar_staging']

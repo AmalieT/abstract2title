@@ -20,7 +20,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import pathlib
 
-batch_size = 256
+batch_size = 512
 epochs = 15
 title_maxlen = 32
 abstract_maxlen = 256
@@ -81,12 +81,46 @@ with mirrored_strategy.scope():
       dropout=0.1,
       num_classes=num_classes,
       abstract_maxlen=abstract_maxlen)
+  # model = encoder_classifier(
+  #     vocab_size=vocab_size,
+  #     num_layers=2,
+  #     units=128,
+  #     d_model=64,
+  #     num_heads=8,
+  #     dropout=0.1,
+  #     num_classes=num_classes,
+  #     abstract_maxlen=abstract_maxlen)
+
+  # dropout = 0.1
+  # d_model = 256
+  # inputs = tf.keras.Input(shape=(abstract_maxlen,), name="inputs")
+
+  # embeddings = tf.keras.layers.Embedding(vocab_size, d_model)(inputs)
+  # embeddings *= tf.math.sqrt(tf.cast(d_model, tf.float32))
+
+  # outputs = tf.keras.layers.Dropout(rate=dropout)(embeddings)
+
+  # outputs = tf.keras.layers.Bidirectional(
+  #     tf.keras.layers.LSTM(units=d_model, return_state=False, return_sequences=False))(outputs)
+  # # outputs = tf.keras.layers.GlobalAveragePooling1D()(outputs)
+
+  # outputs = tf.keras.layers.Dropout(rate=dropout)(outputs)
+
+  # outputs = tf.keras.layers.Dense(
+  #     units=2 * d_model, activation='relu')(outputs)
+
+  # outputs = tf.keras.layers.Dropout(rate=dropout)(outputs)
+
+  # outputs = tf.keras.layers.Dense(
+  #     units=num_classes, name="outputs", activation='softmax')(outputs)
+
+  # model = tf.keras.Model(inputs=inputs, outputs=outputs)
   model.compile(optimizer=optimizer,
                 loss='sparse_categorical_crossentropy', metrics=['sparse_categorical_accuracy', tf.keras.metrics.SparseTopKCategoricalAccuracy(k=5, name="top_5"), tf.keras.metrics.SparseTopKCategoricalAccuracy(k=10, name="top_10")])
 model.summary()
 
 path_checkpoint = os.path.join(
-    base_path, 'abstract2journals_transformer_checkpoint.keras')
+    base_path, 'abstract2title_transformer_checkpoint_val.{epoch:02d}-{val_loss:.2f}.keras')
 
 # path_checkpoint_backup = 'abstract2journals_transformer_checkpoint_backup.keras'
 
